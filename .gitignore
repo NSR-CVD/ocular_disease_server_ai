@@ -1,0 +1,6 @@
+./model
+./__pycache__
+./training_data_temp
+./test_accuracy
+./config_dev.ini
+./config_prd.ini

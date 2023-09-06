@@ -1,0 +1,105 @@
+stages:
+  - build-dev
+  - deploy-dev
+  - build-prd
+  - deploy-prd
+  
+variables:
+  AWS_DEFAULT_REGION: ap-southeast-1
+  DOCKER_HOST: tcp://docker:2375
+
+# DEV
+  DOCKER_REGISTRY: 515041672543.dkr.ecr.ap-southeast-1.amazonaws.com
+  AWS_SERVICE: health-me-client-dev-service
+  AWS_ECR_NAME: health-me-client-dev-ecr
+  AWS_CLUSTER: health-me-client-dev-ecs
+  AWS_TASK_DEV: health-me-client-dev-taskdefinition
+
+# PRD
+  DOCKER_REGISTRY_PRD: 515041672543.dkr.ecr.ap-southeast-1.amazonaws.com
+  AWS_SERVICE_PRD: stretina-api-server-ai-service-prd
+  AWS_ECR_NAME_PRD: stretina-api-server-ai
+  AWS_CLUSTER_PRD: stretina-api-server-ecs-prd
+  AWS_TASK_DEV_PRD: stretina-api-server-ai-taskdef-prd
+
+buildDev:
+  stage: build-dev
+  image:
+    name: amazon/aws-cli
+    entrypoint: [""]
+  services:
+    - docker:dind
+  when: manual
+  only:
+    - dev
+  before_script:
+    - amazon-linux-extras install docker
+    - aws --version
+    - docker --version
+  script:
+    - echo aws login ....
+    - aws ecr get-login-password --region ${AWS_DEFAULT_REGION} | docker login --username AWS --password-stdin ${DOCKER_REGISTRY}
+    - echo docker build ....
+    - docker build -t ${AWS_ECR_NAME} -f ./dev.Dockerfile .
+    - echo docker tag ....
+    - docker tag ${AWS_ECR_NAME}:latest ${DOCKER_REGISTRY}/${AWS_ECR_NAME}:latest
+    - echo docker push ....
+    - docker push ${DOCKER_REGISTRY}/${AWS_ECR_NAME}:latest
+
+deployDev:
+  stage: build-prd
+  image:
+    name: amazon/aws-cli
+    entrypoint: [""]
+  services:
+    - docker:dind
+  when: manual
+  only:
+    - dev
+  before_script:
+    - amazon-linux-extras install docker
+    - aws --version
+    - docker --version
+  script:
+    - echo aws ecs update ....
+    - aws ecs update-service --cluster ${AWS_CLUSTER} --service ${AWS_SERVICE} --task-definition ${AWS_TASK_DEV} --force-new-deployment
+
+buildPrd:
+  stage: build-prd
+  image:
+    name: amazon/aws-cli
+    entrypoint: [""]
+  services:
+    - docker:dind
+  only:
+    - main
+  before_script:
+    - amazon-linux-extras install docker
+    - aws --version
+    - docker --version
+  script:
+    - echo aws login ....
+    - aws ecr get-login-password --region ${AWS_DEFAULT_REGION} | docker login --username AWS --password-stdin ${DOCKER_REGISTRY_PRD}
+    - echo docker build ....
+    - docker build -t ${AWS_ECR_NAME_PRD} -f ./prd.Dockerfile .
+    - echo docker tag ....
+    - docker tag ${AWS_ECR_NAME_PRD}:latest ${DOCKER_REGISTRY_PRD}/${AWS_ECR_NAME_PRD}:latest
+    - echo docker push ....
+    - docker push ${DOCKER_REGISTRY_PRD}/${AWS_ECR_NAME_PRD}:latest
+
+deployPrd:
+  stage: deploy-prd
+  image:
+    name: amazon/aws-cli
+    entrypoint: [""]
+  services:
+    - docker:dind
+  only:
+    - main
+  before_script:
+    - amazon-linux-extras install docker
+    - aws --version
+    - docker --version
+  script:
+    - echo aws ecs update ....
+    - aws ecs update-service --cluster ${AWS_CLUSTER_PRD} --service ${AWS_SERVICE_PRD} --task-definition ${AWS_TASK_DEV_PRD} --force-new-deployment
